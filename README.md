@@ -1,12 +1,12 @@
-# Fluctlight Digital Clone
+# Fluctlight — Ayan
 
-Fluctlight is Ayan's first-person digital clone in an interactive Three.js light field. The original Fluctflight scene and the clone persona JSON are combined here, with server-side OpenRouter chat and Fish Audio speech.
+Fluctlight is Ayan's first-person conversational experience in an interactive Three.js light field. The original Fluctflight scene and Ayan's persona profile are combined here, with server-side streaming OpenRouter chat and timestamped Fish Audio speech.
 
 ## What is included
 
 - The original Three.js shell, memory filaments, core, scene controls and responsive chat.
-- A server-side assistant prompt built from `data/digital_clone.json` and the public portfolio facts in `data/ayan_knowledge.json`.
-- `/api/chat` for OpenRouter. The browser sends only the current conversation; the server supplies the clone's system prompt.
+- A server-side first-person prompt built from `data/digital_clone.json` and the public portfolio facts in `data/ayan_knowledge.json`.
+- `/api/chat` for OpenRouter. The browser sends only the current conversation; the server supplies Ayan's system prompt.
 - `/api/tts` for Fish Audio. The browser falls back to its built-in speech synthesis if Fish Audio is unavailable.
 - Browser speech recognition for voice input in supported browsers.
 
@@ -33,7 +33,7 @@ Deploy this directory as the Vercel project root. It has no build step; Vercel s
 ## Source
 
 - Fluctflight scene: https://github.com/Jarv1s-stack/Fluctflight-AI
-- Digital clone profile: https://github.com/Jarv1s-stack/Ayan-s_Digital_Clone_JSON
+- Persona source profile: https://github.com/Jarv1s-stack/Ayan-s_Digital_Clone_JSON
 - Ayan's portfolio integration: `/projects/fluctlight/`
 
 The original Fluctflight repository contained an OpenRouter credential in its client history. This combined project removes it from the source, but the key should be revoked at its provider because the old commit remains public there.
