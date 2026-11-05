@@ -21,6 +21,7 @@ if (!gl) {
 
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SMALL = Math.min(window.innerWidth, window.innerHeight) < 720;
+let motionEnabled = !REDUCED;
 
 const COUNTS = {
   shell: SMALL ? 7200 : 11000,
@@ -120,14 +121,14 @@ const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerH
 camera.position.set(0, 0.32, 7.5);
 
 const controls = new OrbitControls(camera, canvas);
-controls.enableDamping = true;
+controls.enableDamping = motionEnabled;
 controls.dampingFactor = 0.055;
 controls.rotateSpeed = 0.55;
 controls.zoomSpeed = 0.6;
 controls.enablePan = false;
 controls.minDistance = 2.6;
 controls.maxDistance = 22;
-controls.autoRotate = !REDUCED;
+controls.autoRotate = false;
 controls.autoRotateSpeed = 0.42;
 
 const params = { chaos: 0.55, glow: 1.08, density: 0.85, pulse: 0.6, shell: true };
@@ -580,6 +581,7 @@ function bindSlider(id, outId, key, after) {
     params[key] = v;
     out.textContent = fmt(v);
     if (after) after(v);
+    if (!motionEnabled) renderStatic();
   };
   el.addEventListener('input', apply);
   apply();
@@ -591,8 +593,36 @@ const sGlow = bindSlider('glow', 'outGlow', 'glow', (v) => { bloom.strength = v;
 const sDens = bindSlider('dens', 'outDens', 'density', (v) => { U.uDensity.value = v; });
 const sPulse = bindSlider('pulse', 'outPulse', 'pulse', (v) => { U.uPulse.value = v; });
 
-$('spin').addEventListener('change', (e) => { controls.autoRotate = e.target.checked; });
-$('shell').addEventListener('change', (e) => { shell.visible = e.target.checked; });
+const spinInput = $('spin');
+const motionInput = $('motion');
+spinInput.checked = !REDUCED;
+motionInput.checked = !REDUCED;
+let spinEnabled = spinInput.checked;
+spinInput.addEventListener('change', (e) => {
+  spinEnabled = e.target.checked;
+  controls.autoRotate = motionEnabled && spinEnabled;
+  if (!motionEnabled) renderStatic();
+});
+motionInput.addEventListener('change', (e) => {
+  motionEnabled = e.target.checked;
+  controls.enableDamping = motionEnabled;
+  controls.autoRotate = motionEnabled && spinEnabled;
+  if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+  animationFrame = null;
+  if (motionEnabled && !document.hidden) {
+    clock.start();
+    animationFrame = requestAnimationFrame(animate);
+  } else if (!document.hidden) {
+    renderStatic();
+  }
+});
+$('shell').addEventListener('change', (e) => {
+  shell.visible = e.target.checked;
+  if (!motionEnabled) renderStatic();
+});
+controls.addEventListener('change', () => {
+  if (!motionEnabled) renderStatic();
+});
 
 const panelToggle = $('panelToggle'), panelBody = $('panelBody');
 panelToggle.addEventListener('click', () => {
@@ -616,7 +646,20 @@ document.querySelectorAll('.presets button').forEach((btn) => {
     btn.setAttribute('data-active', '');
     const target = PRESETS[btn.dataset.preset];
     const from = { chaos: params.chaos, glow: params.glow, density: params.density, pulse: params.pulse };
-    tween = { from, target, t: 0 };
+    if (!motionEnabled) {
+      Object.assign(params, target);
+      for (const [key, value] of Object.entries(target)) {
+        sliders[key].value = value;
+        outs[key].textContent = fmt(value);
+      }
+      U.uChaos.value = params.chaos;
+      U.uDensity.value = params.density;
+      U.uPulse.value = params.pulse;
+      bloom.strength = params.glow;
+      renderStatic();
+    } else {
+      tween = { from, target, t: 0 };
+    }
   });
 });
 document.querySelector('.presets button[data-preset="think"]').setAttribute('data-active', '');
@@ -633,6 +676,7 @@ const rdLinks = $('rdLinks'), rdFlux = $('rdFlux');
 const clock = new THREE.Clock();
 let readoutTimer = 0;
 let animationFrame = null;
+let sceneTime = 0;
 
 let fitDistance = 7.5;
 function computeFit() {
@@ -662,12 +706,26 @@ function onResize() {
   bloom.setSize(w, h);
   U.uPR.value = renderer.getPixelRatio();
   U.uProj.value = (h * renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
+  if (!motionEnabled) renderStatic();
 }
 window.addEventListener('resize', onResize);
 
+function renderStatic() {
+  if (document.hidden || motionEnabled) return;
+  rdLinks.textContent = Math.round(COUNTS.filaments * params.density).toLocaleString('ru-RU');
+  rdFlux.textContent = Math.round(params.chaos * 100) + '%';
+  controls.update();
+  composer.render();
+}
+
 function animate() {
+  if (document.hidden || !motionEnabled) {
+    animationFrame = null;
+    return;
+  }
   const dt = Math.min(clock.getDelta(), 0.05);
-  const t = clock.elapsedTime;
+  sceneTime += dt;
+  const t = sceneTime;
   U.uTime.value = t;
   gradePass.uniforms.uTime.value = t;
 
@@ -735,9 +793,9 @@ function animate() {
   readoutTimer -= dt;
   if (readoutTimer <= 0) {
     readoutTimer = 0.22;
-    const links = Math.round(COUNTS.filaments * params.density * 1000 + Math.random() * 900);
+    const links = Math.round(COUNTS.filaments * params.density);
     rdLinks.textContent = links.toLocaleString('ru-RU');
-    rdFlux.textContent = (params.chaos * 100 + Math.random() * 6 - 3).toFixed(1) + '%';
+    rdFlux.textContent = Math.round(params.chaos * 100) + '%';
   }
 
   controls.update();
@@ -752,8 +810,12 @@ document.addEventListener('visibilitychange', () => {
     return;
   }
   if (animationFrame === null) {
-    clock.start();
-    animationFrame = requestAnimationFrame(animate);
+    if (motionEnabled) {
+      clock.start();
+      animationFrame = requestAnimationFrame(animate);
+    } else {
+      renderStatic();
+    }
   }
 });
 
@@ -765,4 +827,8 @@ if (SMALL) {
 
 onResize();
 camera.position.set(0, fitDistance * 0.042, fitDistance);
-if (!document.hidden) animationFrame = requestAnimationFrame(animate);
+controls.autoRotate = motionEnabled && spinEnabled;
+rdLinks.textContent = Math.round(COUNTS.filaments * params.density).toLocaleString('ru-RU');
+rdFlux.textContent = Math.round(params.chaos * 100) + '%';
+if (!document.hidden && motionEnabled) animationFrame = requestAnimationFrame(animate);
+else renderStatic();
